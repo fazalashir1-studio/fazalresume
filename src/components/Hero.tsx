@@ -17,7 +17,7 @@ const Hero = () => {
           {/* Text Content */}
           <div className="text-center lg:text-left">
             <h1 className="text-5xl lg:text-7xl font-bold text-white mb-6 leading-tight">
-              John Smith
+              Ashir Fazal
               <span className="block text-3xl lg:text-4xl font-light text-accent-secondary mt-2">
                 Senior Software Engineer
               </span>
