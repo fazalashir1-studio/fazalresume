@@ -8,26 +8,26 @@ const Contact = () => {
     {
       icon: "📧",
       title: "Email",
-      value: "john.smith@email.com",
-      link: "mailto:john.smith@email.com"
+      value: "aaf590@usask.ca",
+      link: "mailto:aaf590@usask.ca"
     },
     {
       icon: "📱",
       title: "Phone",
-      value: "+1 (555) 123-4567",
-      link: "tel:+15551234567"
+      value: "(306) 229-2903",
+      link: "tel:+13062292903"
     },
     {
       icon: "🌐",
       title: "LinkedIn",
-      value: "linkedin.com/in/johnsmith",
-      link: "https://linkedin.com/in/johnsmith"
+      value: "LinkedIn Profile",
+      link: "#"
     },
     {
       icon: "💻",
-      title: "GitHub",
-      value: "github.com/johnsmith",
-      link: "https://github.com/johnsmith"
+      title: "GitLab",
+      value: "GitLab Profile",
+      link: "#"
     }
   ];
 
@@ -36,10 +36,10 @@ const Contact = () => {
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
           <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
-            Let's Work Together
+            Let's Connect
           </h2>
           <p className="text-xl text-white/90 max-w-2xl mx-auto">
-            Ready to bring your next project to life? I'd love to hear from you.
+            Based in Saskatoon, SK. Ready to collaborate on your next project.
           </p>
         </div>
 
@@ -73,8 +73,8 @@ const Contact = () => {
                   feel free to call me directly.
                 </p>
                 <div className="flex items-center gap-2 text-accent-secondary">
-                  <span>🕒</span>
-                  <span>Available: Mon - Fri, 9 AM - 6 PM EST</span>
+                  <span>📍</span>
+                  <span>Location: Saskatoon, Saskatchewan</span>
                 </div>
               </CardContent>
             </Card>

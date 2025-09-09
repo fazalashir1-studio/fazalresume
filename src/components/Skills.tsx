@@ -4,47 +4,47 @@ import { Badge } from "@/components/ui/badge";
 const Skills = () => {
   const skillCategories = [
     {
-      title: "Frontend Development",
+      title: "Programming Languages",
       icon: "💻",
       skills: [
-        { name: "React", level: 95 },
-        { name: "TypeScript", level: 90 },
-        { name: "Next.js", level: 85 },
-        { name: "Tailwind CSS", level: 92 },
-        { name: "Vue.js", level: 78 }
+        { name: "Python", level: 90 },
+        { name: "Java", level: 85 },
+        { name: "JavaScript", level: 88 },
+        { name: "SQL", level: 92 },
+        { name: "C#", level: 75 }
       ]
     },
     {
-      title: "Backend Development",
-      icon: "⚙️",
+      title: "Web Technologies",
+      icon: "🌐",
       skills: [
-        { name: "Node.js", level: 88 },
-        { name: "Python", level: 85 },
-        { name: "PostgreSQL", level: 82 },
-        { name: "MongoDB", level: 80 },
-        { name: "GraphQL", level: 75 }
+        { name: "HTML", level: 95 },
+        { name: "CSS", level: 90 },
+        { name: "Node.js", level: 80 },
+        { name: "Curl", level: 85 },
+        { name: "Bash", level: 78 }
       ]
     },
     {
-      title: "Cloud & DevOps",
+      title: "Database & Cloud",
       icon: "☁️",
       skills: [
-        { name: "AWS", level: 85 },
-        { name: "Docker", level: 80 },
-        { name: "Kubernetes", level: 70 },
-        { name: "CI/CD", level: 88 },
-        { name: "Terraform", level: 65 }
+        { name: "Google BigQuery", level: 95 },
+        { name: "MySQL", level: 88 },
+        { name: "Docker", level: 75 },
+        { name: "Linux", level: 82 },
+        { name: "Assembly", level: 70 }
       ]
     },
     {
-      title: "Tools & Other",
+      title: "Tools & Technologies",
       icon: "🛠️",
       skills: [
-        { name: "Git", level: 95 },
-        { name: "Figma", level: 75 },
-        { name: "Jest", level: 85 },
-        { name: "Webpack", level: 78 },
-        { name: "Linux", level: 82 }
+        { name: "Git/GitHub", level: 90 },
+        { name: "Jira", level: 85 },
+        { name: "Confluence", level: 80 },
+        { name: "Adobe Lightroom", level: 75 },
+        { name: "Jupyter Notebook", level: 85 }
       ]
     }
   ];
@@ -100,10 +100,9 @@ const Skills = () => {
           <h3 className="text-2xl font-bold text-primary mb-8">Certifications</h3>
           <div className="flex flex-wrap justify-center gap-4 max-w-4xl mx-auto">
             {[
-              "AWS Certified Solutions Architect",
-              "Google Cloud Professional",
-              "React Professional Certificate",
-              "Kubernetes Application Developer"
+              "Google Analytics: Data Everywhere",
+              "Standard First Aid – CPR",
+              "Secourisme général – certification"
             ].map((cert, index) => (
               <Badge key={index} variant="outline" className="text-sm px-4 py-2 bg-white border-accent-primary/20 text-accent-primary">
                 🏆 {cert}

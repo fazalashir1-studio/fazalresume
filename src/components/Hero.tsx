@@ -19,13 +19,13 @@ const Hero = () => {
             <h1 className="text-5xl lg:text-7xl font-bold text-white mb-6 leading-tight">
               Ashir Fazal
               <span className="block text-3xl lg:text-4xl font-light text-accent-secondary mt-2">
-                Senior Software Engineer
+                Software Specialist
               </span>
             </h1>
             
             <p className="text-xl text-white/90 mb-8 max-w-2xl leading-relaxed">
-              Passionate about creating innovative solutions and building scalable applications. 
-              With 5+ years of experience in full-stack development, I bring ideas to life through code.
+              Software Specialist at Vendasta Technologies with expertise in front-end technologies, 
+              BigQuery SQL, and technical support. Computer Science graduate passionate about problem-solving and innovation.
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
