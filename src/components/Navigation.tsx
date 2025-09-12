@@ -54,7 +54,16 @@ const Navigation = () => {
             >
               Contact
             </button>
-            <Button variant="professional" size="sm">
+            <Button 
+              variant="professional" 
+              size="sm"
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = '/Ashir_Fazal_Resume.pdf';
+                link.download = 'Ashir_Fazal_Resume.pdf';
+                link.click();
+              }}
+            >
               Download Resume
             </Button>
           </div>
