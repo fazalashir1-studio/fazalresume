@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const About = () => {
   const stats = [
-    { number: "1.5+", label: "Years at Vendasta" },
+    { number: "2.5+", label: "Years at Vendasta" },
     { number: "96%", label: "CSAT Score" },
     { number: "4", label: "Major Projects" },
     { number: "100%", label: "KPI Achievement" }
