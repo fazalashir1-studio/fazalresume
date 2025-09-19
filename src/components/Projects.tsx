@@ -30,7 +30,7 @@ const Projects = () => {
         "Personal role: Group chat feature development and Git repository management"
       ],
       status: "Completed",
-      link: "Link to project repository"
+      link: "https://git.cs.usask.ca/aaf590/rmi_java"
     },
     {
       title: "Web-System for CBO",
@@ -98,8 +98,13 @@ const Projects = () => {
                       {project.status}
                     </Badge>
                     {project.link && (
-                      <Button variant="outline" size="sm" className="text-xs">
-                        {project.link}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs"
+                        onClick={() => window.open(project.link, '_blank')}
+                      >
+                        {project.link.includes('http') ? 'View Repository' : project.link}
                       </Button>
                     )}
                   </div>
