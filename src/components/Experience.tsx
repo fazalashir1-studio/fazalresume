@@ -11,7 +11,7 @@ const Experience = () => {
       description: "Deliver exceptional customer experiences while working with cutting-edge front-end technologies and technical tools. Collaborate with development teams to improve platform functionality.",
       technologies: ["BigQuery SQL", "Postman APIs", "SendGrid", "Front-end Technologies"],
       highlights: [
-        "Maintained Customer Satisfaction (CSAT) score of over 96% for three consecutive months",
+        "Maintained Customer Satisfaction (CSAT) score of over 96% for over two years",
         "Exceeded monthly KPIs and scorecard outcomes consistently",
         "Collaborated with development teams to identify and manage platform bugs",
         "Created technical documentation and conducted team training sessions",
