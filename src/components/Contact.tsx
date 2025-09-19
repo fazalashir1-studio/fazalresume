@@ -92,7 +92,7 @@ const Contact = () => {
       icon: "💻",
       title: "GitLab",
       value: "GitLab Profile",
-      link: "#"
+      link: "https://git.cs.usask.ca/aaf590"
     }
   ];
 
