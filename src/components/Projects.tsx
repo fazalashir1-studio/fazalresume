@@ -58,7 +58,7 @@ const Projects = () => {
         "Personal role: Game's User Interface, settings, and Save/Load System development"
       ],
       status: "Completed", 
-      link: "Link to project repository"
+      link: "https://git.cs.usask.ca/trg130/cmpt-306-game"
     }
   ];
 
