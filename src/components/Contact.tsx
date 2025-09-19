@@ -86,7 +86,7 @@ const Contact = () => {
       icon: "🌐",
       title: "LinkedIn",
       value: "LinkedIn Profile",
-      link: "#"
+      link: "https://www.linkedin.com/in/fazal-ashir/"
     },
     {
       icon: "💻",
