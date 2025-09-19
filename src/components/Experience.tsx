@@ -9,7 +9,7 @@ const Experience = () => {
       location: "Saskatoon, SK",
       period: "March 2023 – Present",
       description: "Deliver exceptional customer experiences while working with cutting-edge front-end technologies and technical tools. Collaborate with development teams to improve platform functionality.",
-      technologies: ["BigQuery SQL", "Postman APIs", "SendGrid", "Front-end Technologies"],
+      technologies: ["BigQuery SQL", "Postman APIs", "SendGrid", "Zapier", "Automations", "Front-end Technologies"],
       highlights: [
         "Maintained Customer Satisfaction (CSAT) score of over 96% for over two years",
         "Exceeded monthly KPIs and scorecard outcomes consistently",
