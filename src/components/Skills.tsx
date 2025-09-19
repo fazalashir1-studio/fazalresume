@@ -41,6 +41,8 @@ const Skills = () => {
       icon: "🛠️",
       skills: [
         { name: "Git/GitHub", level: 90 },
+        { name: "Postman", level: 93 },
+        { name: "Zapier", level: 87 },
         { name: "Jira", level: 85 },
         { name: "Confluence", level: 80 },
         { name: "Adobe Lightroom", level: 75 },
