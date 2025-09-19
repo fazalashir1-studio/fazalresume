@@ -44,7 +44,7 @@ const Projects = () => {
         "Created MySQL database with Bootstrap designs for optimal user experience"
       ],
       status: "Completed",
-      link: "Link to project repository"
+      link: "https://git.cs.usask.ca/aaf590/web-community-based-organization/-/tree/master?ref_type=heads"
     },
     {
       title: "Zelda for Game Mechanics",
