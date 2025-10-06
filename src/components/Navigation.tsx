@@ -59,8 +59,8 @@ const Navigation = () => {
               size="sm"
               onClick={() => {
                 const link = document.createElement('a');
-                link.href = '/Ashir_Fazal_Resume.pdf';
-                link.download = 'Ashir_Fazal_Resume.pdf';
+                link.href = '/Fazal_Resume2025.pdf';
+                link.download = 'Fazal_Resume2025.pdf';
                 link.click();
               }}
             >
