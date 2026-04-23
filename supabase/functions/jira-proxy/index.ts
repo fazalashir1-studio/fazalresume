@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const PROJECT = "NBLYAMPS";
+
+// Board columns to track for team members (Automations handled separately by Alistair)
+const TEAM_STATUSES = ["Triage", "Ready-to-Pull", "In Progress", "Blocker", "In Review", "Send to NBLY"];
+const DONE_STATUS = "Done";
+const AUTOMATION_STATUS = "Automations";
+
 interface JiraIssue {
   key: string;
   fields: {
@@ -15,14 +22,22 @@ interface JiraIssue {
       emailAddress: string;
       avatarUrls: { "48x48": string };
     } | null;
-    status: {
-      name: string;
-      statusCategory: { key: string; name: string };
-    };
+    status: { name: string; statusCategory: { key: string } };
     priority: { name: string } | null;
     issuetype: { name: string } | null;
     updated: string;
+    resolutiondate: string | null;
   };
+}
+
+interface IssueDetail {
+  key: string;
+  summary: string;
+  status: string;
+  priority: string;
+  type: string;
+  updated: string;
+  resolutiondate: string | null;
 }
 
 interface AgentStats {
@@ -30,19 +45,125 @@ interface AgentStats {
   name: string;
   email: string;
   avatar: string;
-  inProgress: number;
-  done: number;
-  todo: number;
-  total: number;
-  issues: {
-    key: string;
-    summary: string;
-    status: string;
-    statusCategory: string;
-    priority: string;
-    type: string;
-    updated: string;
-  }[];
+  byStatus: Record<string, number>;
+  activeTotal: number;
+  doneThisMonth: number;
+  doneLastMonth: number;
+  issues: IssueDetail[];
+  doneIssuesThisMonth: IssueDetail[];
+  doneIssuesLastMonth: IssueDetail[];
+}
+
+async function fetchAllIssues(
+  baseUrl: string,
+  auth: string,
+  jql: string
+): Promise<JiraIssue[]> {
+  const allIssues: JiraIssue[] = [];
+  let startAt = 0;
+  const maxResults = 100;
+
+  while (true) {
+    const url =
+      `${baseUrl}/rest/api/3/search` +
+      `?jql=${encodeURIComponent(jql)}` +
+      `&fields=assignee,status,summary,priority,issuetype,updated,resolutiondate` +
+      `&maxResults=${maxResults}&startAt=${startAt}`;
+
+    const res = await fetch(url, {
+      headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`Jira API ${res.status}: ${txt}`);
+    }
+
+    const data = await res.json();
+    allIssues.push(...data.issues);
+    if (allIssues.length >= data.total || data.issues.length === 0) break;
+    startAt += maxResults;
+  }
+
+  return allIssues;
+}
+
+function monthBounds(offset = 0): { start: string; end: string; label: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + offset; // supports negative (last month)
+  const start = new Date(y, m, 1);
+  const end = new Date(y, m + 1, 1);
+  return {
+    start: start.toISOString().split("T")[0],
+    end: end.toISOString().split("T")[0],
+    label: start.toLocaleString("en-CA", { month: "long", year: "numeric" }),
+  };
+}
+
+function toDetail(issue: JiraIssue): IssueDetail {
+  return {
+    key: issue.key,
+    summary: issue.fields.summary,
+    status: issue.fields.status.name,
+    priority: issue.fields.priority?.name ?? "None",
+    type: issue.fields.issuetype?.name ?? "Issue",
+    updated: issue.fields.updated,
+    resolutiondate: issue.fields.resolutiondate ?? null,
+  };
+}
+
+function buildAgentMap(
+  activeIssues: JiraIssue[],
+  doneThisMonthIssues: JiraIssue[],
+  doneLastMonthIssues: JiraIssue[]
+): AgentStats[] {
+  const map = new Map<string, AgentStats>();
+
+  const ensureAgent = (issue: JiraIssue) => {
+    const a = issue.fields.assignee;
+    const key = a ? a.accountId : "unassigned";
+    if (!map.has(key)) {
+      map.set(key, {
+        id: key,
+        name: a ? a.displayName : "Unassigned",
+        email: a?.emailAddress ?? "",
+        avatar: a?.avatarUrls?.["48x48"] ?? "",
+        byStatus: {},
+        activeTotal: 0,
+        doneThisMonth: 0,
+        doneLastMonth: 0,
+        issues: [],
+        doneIssuesThisMonth: [],
+        doneIssuesLastMonth: [],
+      });
+    }
+    return map.get(key)!;
+  };
+
+  for (const issue of activeIssues) {
+    const agent = ensureAgent(issue);
+    const statusName = issue.fields.status.name;
+    agent.byStatus[statusName] = (agent.byStatus[statusName] ?? 0) + 1;
+    agent.activeTotal++;
+    agent.issues.push(toDetail(issue));
+  }
+
+  for (const issue of doneThisMonthIssues) {
+    const agent = ensureAgent(issue);
+    agent.doneThisMonth++;
+    agent.doneIssuesThisMonth.push(toDetail(issue));
+  }
+
+  for (const issue of doneLastMonthIssues) {
+    const agent = ensureAgent(issue);
+    agent.doneLastMonth++;
+    agent.doneIssuesLastMonth.push(toDetail(issue));
+  }
+
+  return Array.from(map.values())
+    .filter((a) => a.id !== "unassigned" || a.activeTotal + a.doneThisMonth + a.doneLastMonth > 0)
+    .sort((a, b) => b.doneThisMonth + b.activeTotal - (a.doneThisMonth + a.activeTotal));
 }
 
 serve(async (req) => {
@@ -54,7 +175,6 @@ serve(async (req) => {
     const jiraBaseUrl = Deno.env.get("JIRA_BASE_URL");
     const jiraEmail = Deno.env.get("JIRA_EMAIL");
     const jiraApiToken = Deno.env.get("JIRA_API_TOKEN");
-    const project = "NBLY";
 
     if (!jiraBaseUrl || !jiraEmail || !jiraApiToken) {
       return new Response(
@@ -64,98 +184,57 @@ serve(async (req) => {
     }
 
     const auth = btoa(`${jiraEmail}:${jiraApiToken}`);
-    const allIssues: JiraIssue[] = [];
-    let startAt = 0;
-    const maxResults = 100;
+    const thisMonth = monthBounds(0);
+    const lastMonth = monthBounds(-1);
 
-    // Paginate through all issues for NBLY project
-    while (true) {
-      const jql = `project=${project} ORDER BY updated DESC`;
-      const url = `${jiraBaseUrl}/rest/api/3/search?jql=${encodeURIComponent(jql)}&fields=assignee,status,summary,priority,issuetype,updated&maxResults=${maxResults}&startAt=${startAt}`;
+    // Run all 3 queries in parallel for speed
+    const [activeIssues, doneThisMonth, doneLastMonth] = await Promise.all([
+      // Active team workload — exclude Done and Automations
+      fetchAllIssues(
+        jiraBaseUrl,
+        auth,
+        `project = ${PROJECT} AND status not in ("${DONE_STATUS}", "${AUTOMATION_STATUS}") ORDER BY updated DESC`
+      ),
+      // Completed this month
+      fetchAllIssues(
+        jiraBaseUrl,
+        auth,
+        `project = ${PROJECT} AND status = "${DONE_STATUS}" AND resolutiondate >= "${thisMonth.start}" AND resolutiondate < "${thisMonth.end}" ORDER BY resolutiondate DESC`
+      ),
+      // Completed last month (for comparison)
+      fetchAllIssues(
+        jiraBaseUrl,
+        auth,
+        `project = ${PROJECT} AND status = "${DONE_STATUS}" AND resolutiondate >= "${lastMonth.start}" AND resolutiondate < "${lastMonth.end}" ORDER BY resolutiondate DESC`
+      ),
+    ]);
 
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: "application/json",
-        },
-      });
+    const agents = buildAgentMap(activeIssues, doneThisMonth, doneLastMonth);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        return new Response(
-          JSON.stringify({ error: `Jira API error: ${response.status}`, details: errorText }),
-          { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const data = await response.json();
-      allIssues.push(...data.issues);
-
-      if (allIssues.length >= data.total || data.issues.length === 0) {
-        break;
-      }
-      startAt += maxResults;
+    // Aggregate status counts across all agents
+    const statusSummary: Record<string, number> = {};
+    for (const issue of activeIssues) {
+      const s = issue.fields.status.name;
+      statusSummary[s] = (statusSummary[s] ?? 0) + 1;
     }
-
-    // Aggregate stats per assignee
-    const agentMap = new Map<string, AgentStats>();
-
-    for (const issue of allIssues) {
-      const assignee = issue.fields.assignee;
-      const statusCategory = issue.fields.status.statusCategory.key; // "new" | "indeterminate" | "done"
-      const agentKey = assignee ? assignee.accountId : "unassigned";
-      const agentName = assignee ? assignee.displayName : "Unassigned";
-      const agentEmail = assignee?.emailAddress ?? "";
-      const agentAvatar = assignee?.avatarUrls?.["48x48"] ?? "";
-
-      if (!agentMap.has(agentKey)) {
-        agentMap.set(agentKey, {
-          id: agentKey,
-          name: agentName,
-          email: agentEmail,
-          avatar: agentAvatar,
-          inProgress: 0,
-          done: 0,
-          todo: 0,
-          total: 0,
-          issues: [],
-        });
-      }
-
-      const agent = agentMap.get(agentKey)!;
-      agent.total++;
-
-      if (statusCategory === "done") {
-        agent.done++;
-      } else if (statusCategory === "indeterminate") {
-        agent.inProgress++;
-      } else {
-        agent.todo++;
-      }
-
-      agent.issues.push({
-        key: issue.key,
-        summary: issue.fields.summary,
-        status: issue.fields.status.name,
-        statusCategory,
-        priority: issue.fields.priority?.name ?? "None",
-        type: issue.fields.issuetype?.name ?? "Issue",
-        updated: issue.fields.updated,
-      });
-    }
-
-    const agents = Array.from(agentMap.values()).sort((a, b) => b.total - a.total);
 
     const summary = {
-      total: allIssues.length,
-      inProgress: agents.reduce((sum, a) => sum + a.inProgress, 0),
-      done: agents.reduce((sum, a) => sum + a.done, 0),
-      todo: agents.reduce((sum, a) => sum + a.todo, 0),
+      activeTotal: activeIssues.length,
+      doneThisMonth: doneThisMonth.length,
+      doneLastMonth: doneLastMonth.length,
       agentCount: agents.filter((a) => a.id !== "unassigned").length,
+      byStatus: statusSummary,
     };
 
     return new Response(
-      JSON.stringify({ agents, summary, project, lastUpdated: new Date().toISOString() }),
+      JSON.stringify({
+        agents,
+        summary,
+        project: PROJECT,
+        thisMonthLabel: thisMonth.label,
+        lastMonthLabel: lastMonth.label,
+        lastUpdated: new Date().toISOString(),
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {
