@@ -65,7 +65,7 @@ async function fetchAllIssues(
 
   while (true) {
     const url =
-      `${baseUrl}/rest/api/3/search` +
+      `${baseUrl}/rest/api/3/search/jql` +
       `?jql=${encodeURIComponent(jql)}` +
       `&fields=assignee,status,summary,priority,issuetype,updated,resolutiondate` +
       `&maxResults=${maxResults}&startAt=${startAt}`;
