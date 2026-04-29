@@ -314,6 +314,82 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
+function CapacityMeter({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
+      <div
+        className="h-full rounded-full transition-all duration-500"
+        style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: color }}
+      />
+    </div>
+  );
+}
+
+function capacityStatus(pct: number, hasData: boolean) {
+  if (!hasData) return { label: "No History", color: "#9E9E9E", bg: "bg-gray-100 text-gray-500" };
+  if (pct < 60)  return { label: "Available",   color: "#4CAF50", bg: "bg-green-100 text-green-700" };
+  if (pct < 85)  return { label: "Busy",         color: "#FF9800", bg: "bg-amber-100 text-amber-700" };
+  if (pct < 110) return { label: "Near Limit",   color: "#FF5722", bg: "bg-orange-100 text-orange-700" };
+  return              { label: "Overloaded",   color: "#F44336", bg: "bg-red-100 text-red-700" };
+}
+
+function CapacityCard({ agent }: { agent: AgentStats }) {
+  const avgThroughput = (agent.doneThisMonth + agent.doneLastMonth) / 2;
+  const utilizationPct = avgThroughput > 0
+    ? Math.round((agent.activeTotal / avgThroughput) * 100)
+    : agent.activeTotal > 0 ? 100 : 0;
+  const canTake = avgThroughput > 0
+    ? Math.max(0, Math.round(avgThroughput - agent.activeTotal))
+    : null;
+  const status = capacityStatus(utilizationPct, avgThroughput > 0);
+
+  return (
+    <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <AgentAvatar name={agent.name} avatar={agent.avatar} />
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">{agent.name}</p>
+              <p className="text-xs text-muted-foreground">{agent.email || "—"}</p>
+            </div>
+          </div>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${status.bg}`}>
+            {status.label}
+          </span>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex justify-between text-xs text-gray-500 mb-1">
+            <span>Utilization</span>
+            <span className="font-bold text-gray-800">{avgThroughput > 0 ? `${utilizationPct}%` : "—"}</span>
+          </div>
+          <CapacityMeter pct={utilizationPct} color={status.color} />
+
+          <div className="grid grid-cols-3 gap-2 pt-2">
+            <div className="text-center rounded-lg bg-gray-50 p-2">
+              <p className="text-lg font-black text-gray-800">{Math.round(avgThroughput) || "—"}</p>
+              <p className="text-[10px] text-gray-500 leading-tight">Avg tickets<br/>/ month</p>
+            </div>
+            <div className="text-center rounded-lg bg-blue-50 p-2">
+              <p className="text-lg font-black text-blue-700">{agent.activeTotal}</p>
+              <p className="text-[10px] text-blue-500 leading-tight">Current<br/>active</p>
+            </div>
+            <div className={`text-center rounded-lg p-2 ${canTake === null ? "bg-gray-50" : canTake > 0 ? "bg-green-50" : "bg-red-50"}`}>
+              <p className={`text-lg font-black ${canTake === null ? "text-gray-400" : canTake > 0 ? "text-green-700" : "text-red-600"}`}>
+                {canTake === null ? "—" : canTake > 0 ? `+${canTake}` : "0"}
+              </p>
+              <p className={`text-[10px] leading-tight ${canTake === null ? "text-gray-400" : canTake > 0 ? "text-green-500" : "text-red-400"}`}>
+                Can still<br/>take
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConfigNotice() {
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-800">
@@ -341,7 +417,7 @@ export default function JiraDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [missingCreds, setMissingCreds] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "agents">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "agents" | "capacity">("overview");
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -453,7 +529,7 @@ export default function JiraDashboard() {
       <div className="border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-8">
           <div className="flex gap-6">
-            {(["overview", "agents"] as const).map((tab) => (
+            {(["overview", "agents", "capacity"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -463,7 +539,7 @@ export default function JiraDashboard() {
                     : "border-transparent text-gray-500 hover:text-gray-700"
                 }`}
               >
-                {tab === "overview" ? "📊 Overview" : "👥 Agent Breakdown"}
+                {tab === "overview" ? "📊 Overview" : tab === "agents" ? "👥 Agent Breakdown" : "⚡ Capacity"}
               </button>
             ))}
           </div>
@@ -648,6 +724,112 @@ export default function JiraDashboard() {
             </Card>
           </>
         )}
+
+        {!loading && data && activeTab === "capacity" && (() => {
+          const teamAgents = data.agents.filter((a) => a.id !== "unassigned");
+          const totalAvgThroughput = teamAgents.reduce((s, a) => s + (a.doneThisMonth + a.doneLastMonth) / 2, 0);
+          const totalActive = data.summary.activeTotal;
+          const totalCanTake = Math.max(0, Math.round(totalAvgThroughput - totalActive));
+          const teamUtilPct = totalAvgThroughput > 0
+            ? Math.round((totalActive / totalAvgThroughput) * 100)
+            : 0;
+
+          return (
+            <>
+              {/* ── Capacity KPI Row ── */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <KPICard
+                  label="Team Avg Throughput"
+                  value={Math.round(totalAvgThroughput)}
+                  sub="Tickets resolved / month (2-month avg)"
+                  color="#2196F3"
+                  icon="📈"
+                />
+                <KPICard
+                  label="Current Team Load"
+                  value={totalActive}
+                  sub="Active tickets in flight"
+                  color="#475569"
+                  icon="📋"
+                />
+                <KPICard
+                  label="Team Can Still Take"
+                  value={totalCanTake > 0 ? `+${totalCanTake}` : "0"}
+                  sub={totalCanTake > 0 ? "Tickets before hitting limit" : "Team is at or over capacity"}
+                  color={totalCanTake > 0 ? "#4CAF50" : "#F44336"}
+                  icon={totalCanTake > 0 ? "✅" : "⚠️"}
+                />
+                <KPICard
+                  label="Team Utilization"
+                  value={`${teamUtilPct}%`}
+                  sub={teamUtilPct < 80 ? "Healthy — room to absorb more" : teamUtilPct < 100 ? "Getting full" : "At or over capacity"}
+                  color={teamUtilPct < 80 ? "#4CAF50" : teamUtilPct < 100 ? "#FF9800" : "#F44336"}
+                  icon="⚡"
+                />
+              </div>
+
+              {/* ── How to read this ── */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 text-xs text-blue-700 flex gap-2 items-start">
+                <span className="text-base mt-0.5">ℹ️</span>
+                <span>
+                  <strong>Avg tickets/month</strong> = average of tickets completed this month + last month.&nbsp;
+                  <strong>Can still take</strong> = how many more tickets an agent can absorb before hitting their historical limit.&nbsp;
+                  Agents with no completion history show "No History" — check back after their first completed tickets.
+                </span>
+              </div>
+
+              {/* ── Per-agent capacity cards ── */}
+              <div>
+                <h2 className="text-sm font-bold text-gray-700 mb-3">Per-Agent Capacity</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {teamAgents.length === 0 ? (
+                    <p className="text-sm text-muted-foreground col-span-3 py-12 text-center">
+                      No agents found.
+                    </p>
+                  ) : (
+                    teamAgents.map((agent) => (
+                      <CapacityCard key={agent.id} agent={agent} />
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* ── Capacity vs Load bar chart ── */}
+              <Card className="border-0 shadow-md">
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-sm font-bold text-gray-700">
+                    Avg Monthly Throughput vs Current Load
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Green = historical capacity (avg tickets/month). Blue = current active tickets.
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={280}>
+                    <BarChart
+                      data={teamAgents.map((a) => ({
+                        name: a.name.split(" ")[0],
+                        "Avg Capacity": Math.round((a.doneThisMonth + a.doneLastMonth) / 2),
+                        "Current Load": a.activeTotal,
+                      }))}
+                      barGap={4}
+                      barCategoryGap="30%"
+                      margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#6B7280" }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+                      <Bar dataKey="Avg Capacity" fill="#4CAF50" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Current Load" fill="#2196F3" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </>
+          );
+        })()}
 
         {!loading && data && activeTab === "agents" && (
           <>
