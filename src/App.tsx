@@ -14,7 +14,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, "") || "/"}>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/jira-dashboard" element={<JiraDashboard />} />
