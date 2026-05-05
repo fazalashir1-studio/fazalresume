@@ -18,6 +18,7 @@ interface IssueDetail {
   type: string;
   updated: string;
   resolutiondate: string | null;
+  brand: string; // "MLY" if Molly Maid, "" otherwise
 }
 
 interface AgentStats {
@@ -32,6 +33,12 @@ interface AgentStats {
   issues: IssueDetail[];
   doneIssuesThisMonth: IssueDetail[];
   doneIssuesLastMonth: IssueDetail[];
+  mlyActive: number;
+  mlyDoneThisMonth: number;
+  mlyDoneLastMonth: number;
+  weightedActiveTotal: number;
+  weightedDoneThisMonth: number;
+  weightedDoneLastMonth: number;
 }
 
 interface Summary {
@@ -168,6 +175,7 @@ function IssueSubTable({ issues, title }: { issues: IssueDetail[]; title: string
           <tr>
             <th className="py-1.5 px-3 text-left font-semibold text-gray-500">Key</th>
             <th className="py-1.5 px-3 text-left font-semibold text-gray-500">Summary</th>
+            <th className="py-1.5 px-3 text-left font-semibold text-gray-500">Brand</th>
             <th className="py-1.5 px-3 text-left font-semibold text-gray-500">Status</th>
             <th className="py-1.5 px-3 text-left font-semibold text-gray-500">Priority</th>
             <th className="py-1.5 px-3 text-left font-semibold text-gray-500">Updated</th>
@@ -180,6 +188,15 @@ function IssueSubTable({ issues, title }: { issues: IssueDetail[]; title: string
                 {issue.key}
               </td>
               <td className="py-1.5 px-3 text-gray-700 max-w-xs truncate">{issue.summary}</td>
+              <td className="py-1.5 px-3">
+                {issue.brand === "MLY" ? (
+                  <span className="rounded-full bg-purple-100 text-purple-700 border border-purple-200 px-2 py-0.5 text-[10px] font-bold tracking-wide">
+                    MLY ×2
+                  </span>
+                ) : (
+                  <span className="text-gray-300">—</span>
+                )}
+              </td>
               <td className="py-1.5 px-3">
                 <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusBadgeClass(issue.status)}`}>
                   {issue.status}
@@ -334,19 +351,22 @@ function capacityStatus(pct: number, hasData: boolean) {
 }
 
 function CapacityCard({ agent }: { agent: AgentStats }) {
-  const avgThroughput = (agent.doneThisMonth + agent.doneLastMonth) / 2;
-  const utilizationPct = avgThroughput > 0
-    ? Math.round((agent.activeTotal / avgThroughput) * 100)
+  const avgWeightedThroughput = (agent.weightedDoneThisMonth + agent.weightedDoneLastMonth) / 2;
+  const hasHistory = avgWeightedThroughput > 0;
+  const utilizationPct = hasHistory
+    ? Math.round((agent.weightedActiveTotal / avgWeightedThroughput) * 100)
     : agent.activeTotal > 0 ? 100 : 0;
-  const canTake = avgThroughput > 0
-    ? Math.max(0, Math.round(avgThroughput - agent.activeTotal))
+  // Remaining capacity in effort units; divide by 1 for regular-ticket equivalents
+  const weightedCanTake = hasHistory
+    ? Math.max(0, avgWeightedThroughput - agent.weightedActiveTotal)
     : null;
-  const status = capacityStatus(utilizationPct, avgThroughput > 0);
+  const status = capacityStatus(utilizationPct, hasHistory);
+  const hasMly = agent.mlyActive > 0;
 
   return (
     <Card className="border-0 shadow-md hover:shadow-lg transition-shadow">
       <CardContent className="p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <AgentAvatar name={agent.name} avatar={agent.avatar} />
             <div>
@@ -359,30 +379,52 @@ function CapacityCard({ agent }: { agent: AgentStats }) {
           </span>
         </div>
 
+        {/* MLY indicator */}
+        {hasMly && (
+          <div className="mb-3 flex items-center gap-1.5 rounded-lg bg-purple-50 border border-purple-100 px-3 py-1.5">
+            <span className="text-[10px] font-bold text-purple-700 tracking-wide">MLY ×2</span>
+            <span className="text-[10px] text-purple-500">
+              {agent.mlyActive} of {agent.activeTotal} active tickets are Molly Maid (weighted 2×)
+            </span>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>Utilization</span>
-            <span className="font-bold text-gray-800">{avgThroughput > 0 ? `${utilizationPct}%` : "—"}</span>
+            <span>Weighted utilization</span>
+            <span className="font-bold text-gray-800">{hasHistory ? `${utilizationPct}%` : "—"}</span>
           </div>
           <CapacityMeter pct={utilizationPct} color={status.color} />
 
           <div className="grid grid-cols-3 gap-2 pt-2">
             <div className="text-center rounded-lg bg-gray-50 p-2">
-              <p className="text-lg font-black text-gray-800">{Math.round(avgThroughput) || "—"}</p>
-              <p className="text-[10px] text-gray-500 leading-tight">Avg tickets<br/>/ month</p>
+              <p className="text-lg font-black text-gray-800">
+                {hasHistory ? Math.round(avgWeightedThroughput) : "—"}
+              </p>
+              <p className="text-[10px] text-gray-500 leading-tight">Avg effort<br/>units/mo</p>
             </div>
             <div className="text-center rounded-lg bg-blue-50 p-2">
-              <p className="text-lg font-black text-blue-700">{agent.activeTotal}</p>
-              <p className="text-[10px] text-blue-500 leading-tight">Current<br/>active</p>
-            </div>
-            <div className={`text-center rounded-lg p-2 ${canTake === null ? "bg-gray-50" : canTake > 0 ? "bg-green-50" : "bg-red-50"}`}>
-              <p className={`text-lg font-black ${canTake === null ? "text-gray-400" : canTake > 0 ? "text-green-700" : "text-red-600"}`}>
-                {canTake === null ? "—" : canTake > 0 ? `+${canTake}` : "0"}
+              <p className="text-lg font-black text-blue-700">
+                {Math.round(agent.weightedActiveTotal * 10) / 10}
               </p>
-              <p className={`text-[10px] leading-tight ${canTake === null ? "text-gray-400" : canTake > 0 ? "text-green-500" : "text-red-400"}`}>
-                Can still<br/>take
+              <p className="text-[10px] text-blue-500 leading-tight">Weighted<br/>load</p>
+            </div>
+            <div className={`text-center rounded-lg p-2 ${weightedCanTake === null ? "bg-gray-50" : weightedCanTake > 0 ? "bg-green-50" : "bg-red-50"}`}>
+              <p className={`text-lg font-black ${weightedCanTake === null ? "text-gray-400" : weightedCanTake > 0 ? "text-green-700" : "text-red-600"}`}>
+                {weightedCanTake === null ? "—" : weightedCanTake > 0 ? `+${Math.round(weightedCanTake * 10) / 10}` : "0"}
+              </p>
+              <p className={`text-[10px] leading-tight ${weightedCanTake === null ? "text-gray-400" : weightedCanTake > 0 ? "text-green-500" : "text-red-400"}`}>
+                Remaining<br/>capacity
               </p>
             </div>
+          </div>
+
+          {/* Raw ticket counts as secondary info */}
+          <div className="pt-1 border-t border-gray-100 flex justify-between text-[10px] text-gray-400">
+            <span>{agent.activeTotal} raw tickets active</span>
+            {agent.mlyActive > 0 && (
+              <span className="text-purple-400">{agent.mlyActive} MLY · {agent.activeTotal - agent.mlyActive} other</span>
+            )}
           </div>
         </div>
       </CardContent>
@@ -727,11 +769,15 @@ export default function JiraDashboard() {
 
         {!loading && data && activeTab === "capacity" && (() => {
           const teamAgents = data.agents.filter((a) => a.id !== "unassigned");
-          const totalAvgThroughput = teamAgents.reduce((s, a) => s + (a.doneThisMonth + a.doneLastMonth) / 2, 0);
+          const totalWeightedThroughput = teamAgents.reduce(
+            (s, a) => s + (a.weightedDoneThisMonth + a.weightedDoneLastMonth) / 2, 0
+          );
+          const totalWeightedLoad = teamAgents.reduce((s, a) => s + a.weightedActiveTotal, 0);
+          const totalMlyActive = teamAgents.reduce((s, a) => s + a.mlyActive, 0);
           const totalActive = data.summary.activeTotal;
-          const totalCanTake = Math.max(0, Math.round(totalAvgThroughput - totalActive));
-          const teamUtilPct = totalAvgThroughput > 0
-            ? Math.round((totalActive / totalAvgThroughput) * 100)
+          const totalWeightedCanTake = Math.max(0, totalWeightedThroughput - totalWeightedLoad);
+          const teamUtilPct = totalWeightedThroughput > 0
+            ? Math.round((totalWeightedLoad / totalWeightedThroughput) * 100)
             : 0;
 
           return (
@@ -739,25 +785,25 @@ export default function JiraDashboard() {
               {/* ── Capacity KPI Row ── */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <KPICard
-                  label="Team Avg Throughput"
-                  value={Math.round(totalAvgThroughput)}
-                  sub="Tickets resolved / month (2-month avg)"
+                  label="Team Weighted Throughput"
+                  value={Math.round(totalWeightedThroughput)}
+                  sub="Effort units/month (MLY tickets = 2× weight)"
                   color="#2196F3"
                   icon="📈"
                 />
                 <KPICard
-                  label="Current Team Load"
-                  value={totalActive}
-                  sub="Active tickets in flight"
+                  label="Current Weighted Load"
+                  value={Math.round(totalWeightedLoad * 10) / 10}
+                  sub={`${totalActive} raw tickets · ${totalMlyActive} MLY (×2)`}
                   color="#475569"
                   icon="📋"
                 />
                 <KPICard
                   label="Team Can Still Take"
-                  value={totalCanTake > 0 ? `+${totalCanTake}` : "0"}
-                  sub={totalCanTake > 0 ? "Tickets before hitting limit" : "Team is at or over capacity"}
-                  color={totalCanTake > 0 ? "#4CAF50" : "#F44336"}
-                  icon={totalCanTake > 0 ? "✅" : "⚠️"}
+                  value={totalWeightedCanTake > 0 ? `+${Math.round(totalWeightedCanTake * 10) / 10}` : "0"}
+                  sub={totalWeightedCanTake > 0 ? "Effort units before hitting limit" : "Team is at or over capacity"}
+                  color={totalWeightedCanTake > 0 ? "#4CAF50" : "#F44336"}
+                  icon={totalWeightedCanTake > 0 ? "✅" : "⚠️"}
                 />
                 <KPICard
                   label="Team Utilization"
@@ -768,13 +814,15 @@ export default function JiraDashboard() {
                 />
               </div>
 
-              {/* ── How to read this ── */}
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 text-xs text-blue-700 flex gap-2 items-start">
-                <span className="text-base mt-0.5">ℹ️</span>
+              {/* ── 80/20 Rule explanation ── */}
+              <div className="rounded-xl border border-purple-100 bg-purple-50 px-5 py-3 text-xs text-purple-800 flex gap-2 items-start">
+                <span className="text-base mt-0.5">⚖️</span>
                 <span>
-                  <strong>Avg tickets/month</strong> = average of tickets completed this month + last month.&nbsp;
-                  <strong>Can still take</strong> = how many more tickets an agent can absorb before hitting their historical limit.&nbsp;
-                  Agents with no completion history show "No History" — check back after their first completed tickets.
+                  <strong>80/20 MLY Rule:</strong> Molly Maid (MLY) tickets are weighted at <strong>2× effort</strong> because they consistently take longer than other brands.
+                  A person with 3 MLY + 4 regular tickets carries a weighted load of <strong>10 effort units</strong> (not 7).&nbsp;
+                  <strong>Capacity</strong> is the historical 2-month average of weighted effort completed.&nbsp;
+                  <strong>Remaining capacity</strong> = capacity − current weighted load.
+                  Agents with no history show "No History."
                 </span>
               </div>
 
@@ -794,14 +842,14 @@ export default function JiraDashboard() {
                 </div>
               </div>
 
-              {/* ── Capacity vs Load bar chart ── */}
+              {/* ── Weighted Capacity vs Load bar chart ── */}
               <Card className="border-0 shadow-md">
                 <CardHeader className="pb-1">
                   <CardTitle className="text-sm font-bold text-gray-700">
-                    Avg Monthly Throughput vs Current Load
+                    Weighted Throughput vs Weighted Load (80/20 MLY Rule)
                   </CardTitle>
                   <p className="text-xs text-muted-foreground">
-                    Green = historical capacity (avg tickets/month). Blue = current active tickets.
+                    Green = historical weighted capacity (effort units/month). Blue = current weighted load. MLY tickets count 2×.
                   </p>
                 </CardHeader>
                 <CardContent>
@@ -809,8 +857,8 @@ export default function JiraDashboard() {
                     <BarChart
                       data={teamAgents.map((a) => ({
                         name: a.name.split(" ")[0],
-                        "Avg Capacity": Math.round((a.doneThisMonth + a.doneLastMonth) / 2),
-                        "Current Load": a.activeTotal,
+                        "Weighted Capacity": Math.round((a.weightedDoneThisMonth + a.weightedDoneLastMonth) / 2 * 10) / 10,
+                        "Weighted Load": Math.round(a.weightedActiveTotal * 10) / 10,
                       }))}
                       barGap={4}
                       barCategoryGap="30%"
@@ -821,8 +869,8 @@ export default function JiraDashboard() {
                       <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: "#6B7280" }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomTooltip />} />
                       <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
-                      <Bar dataKey="Avg Capacity" fill="#4CAF50" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="Current Load" fill="#2196F3" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Weighted Capacity" fill="#4CAF50" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Weighted Load" fill="#2196F3" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>

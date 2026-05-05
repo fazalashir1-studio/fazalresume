@@ -12,6 +12,9 @@ const TEAM_STATUSES = ["Triage", "Ready-to-Pull", "In Progress", "Blocker", "In 
 const DONE_STATUS = "Done";
 const AUTOMATION_STATUS = "Automations";
 
+// 80/20 rule: MLY (Molly Maid) tickets take ~2x longer than other brands
+const MLY_WEIGHT = 2.0;
+
 interface JiraIssue {
   key: string;
   fields: {
@@ -27,6 +30,8 @@ interface JiraIssue {
     issuetype: { name: string } | null;
     updated: string;
     resolutiondate: string | null;
+    labels: string[];
+    components: { name: string }[];
   };
 }
 
@@ -38,6 +43,7 @@ interface IssueDetail {
   type: string;
   updated: string;
   resolutiondate: string | null;
+  brand: string; // "MLY" if Molly Maid ticket, "" otherwise
 }
 
 interface AgentStats {
@@ -52,6 +58,27 @@ interface AgentStats {
   issues: IssueDetail[];
   doneIssuesThisMonth: IssueDetail[];
   doneIssuesLastMonth: IssueDetail[];
+  // MLY brand counts (80/20 rule: MLY tickets are weighted at MLY_WEIGHT)
+  mlyActive: number;
+  mlyDoneThisMonth: number;
+  mlyDoneLastMonth: number;
+  // Weighted totals: regular tickets × 1 + MLY tickets × MLY_WEIGHT
+  weightedActiveTotal: number;
+  weightedDoneThisMonth: number;
+  weightedDoneLastMonth: number;
+}
+
+function isMlyIssue(issue: JiraIssue): boolean {
+  const labels = issue.fields.labels ?? [];
+  const components = issue.fields.components ?? [];
+  const summary = (issue.fields.summary ?? "").toUpperCase().trimStart();
+  return (
+    labels.some((l) => l.toUpperCase() === "MLY") ||
+    components.some((c) => c.name.toUpperCase() === "MLY") ||
+    summary.startsWith("[MLY]") ||
+    summary.startsWith("MLY -") ||
+    summary.startsWith("MLY:")
+  );
 }
 
 async function fetchAllIssues(
@@ -67,7 +94,7 @@ async function fetchAllIssues(
     const url =
       `${baseUrl}/rest/api/3/search` +
       `?jql=${encodeURIComponent(jql)}` +
-      `&fields=assignee,status,summary,priority,issuetype,updated,resolutiondate` +
+      `&fields=assignee,status,summary,priority,issuetype,updated,resolutiondate,labels,components` +
       `&maxResults=${maxResults}&startAt=${startAt}`;
 
     const res = await fetch(url, {
@@ -110,6 +137,7 @@ function toDetail(issue: JiraIssue): IssueDetail {
     type: issue.fields.issuetype?.name ?? "Issue",
     updated: issue.fields.updated,
     resolutiondate: issue.fields.resolutiondate ?? null,
+    brand: isMlyIssue(issue) ? "MLY" : "",
   };
 }
 
@@ -136,6 +164,12 @@ function buildAgentMap(
         issues: [],
         doneIssuesThisMonth: [],
         doneIssuesLastMonth: [],
+        mlyActive: 0,
+        mlyDoneThisMonth: 0,
+        mlyDoneLastMonth: 0,
+        weightedActiveTotal: 0,
+        weightedDoneThisMonth: 0,
+        weightedDoneLastMonth: 0,
       });
     }
     return map.get(key)!;
@@ -146,19 +180,32 @@ function buildAgentMap(
     const statusName = issue.fields.status.name;
     agent.byStatus[statusName] = (agent.byStatus[statusName] ?? 0) + 1;
     agent.activeTotal++;
+    if (isMlyIssue(issue)) agent.mlyActive++;
     agent.issues.push(toDetail(issue));
   }
 
   for (const issue of doneThisMonthIssues) {
     const agent = ensureAgent(issue);
     agent.doneThisMonth++;
+    if (isMlyIssue(issue)) agent.mlyDoneThisMonth++;
     agent.doneIssuesThisMonth.push(toDetail(issue));
   }
 
   for (const issue of doneLastMonthIssues) {
     const agent = ensureAgent(issue);
     agent.doneLastMonth++;
+    if (isMlyIssue(issue)) agent.mlyDoneLastMonth++;
     agent.doneIssuesLastMonth.push(toDetail(issue));
+  }
+
+  // Compute weighted totals using 80/20 MLY rule
+  for (const agent of map.values()) {
+    const regularActive = agent.activeTotal - agent.mlyActive;
+    const regularDoneThis = agent.doneThisMonth - agent.mlyDoneThisMonth;
+    const regularDoneLast = agent.doneLastMonth - agent.mlyDoneLastMonth;
+    agent.weightedActiveTotal = regularActive + agent.mlyActive * MLY_WEIGHT;
+    agent.weightedDoneThisMonth = regularDoneThis + agent.mlyDoneThisMonth * MLY_WEIGHT;
+    agent.weightedDoneLastMonth = regularDoneLast + agent.mlyDoneLastMonth * MLY_WEIGHT;
   }
 
   return Array.from(map.values())
